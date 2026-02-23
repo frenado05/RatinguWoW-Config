@@ -50,7 +50,23 @@ end
 local DEBUG_MODE = false
 
 -- Жестко заданный реалм (только для этого сервера)
-local TARGET_REALM = "x100 Plus Season"
+local TARGET_REALMS = {
+    "x100 Plus Season",
+    "x100 Plus Season [RU]",
+    "x100 Plus Season [RU2]",
+    "x100 Plus Season [PL]",
+}
+
+-- Функция проверки реалма
+local function IsTargetRealm()
+    local currentRealm = GetRealmName() or ""
+    for _, realm in ipairs(TARGET_REALMS) do
+        if currentRealm == realm then
+            return true
+        end
+    end
+    return false
+end
 
 -- В начале файла, после DEBUG_MODE
 local successFont = "Fonts\\ARIALN.TTF"  -- значение по умолчанию
@@ -212,8 +228,7 @@ end
 -- Парсинг сообщения с рейтингом из UISMSG_UCUSTOM_BRACKET (СОЛО)
 local function ParseCustomBracketMessage(prefix, text, sender)
     -- Проверяем реалм
-    local currentRealm = GetRealmName() or ""
-    if currentRealm ~= TARGET_REALM then
+    if not IsTargetRealm() then
         return  -- игнорируем другие реалмы
     end
     if not text or not string.find(text, "UISMSG_UCUSTOM_BRACKET:") then return end
@@ -325,8 +340,7 @@ end
 -- Обновление данных текущего персонажа
 local function UpdateCharacterData()
     -- Проверяем реалм
-    local currentRealm = GetRealmName() or ""
-    if currentRealm ~= TARGET_REALM then
+    if not IsTargetRealm() then
         return  -- не сохраняем персонажей с других реалмов
     end
     
@@ -594,7 +608,7 @@ function RefreshDisplay()
     -- Собираем данные
 	local list = {}
 	for _, v in pairs(RatinguWoWx100DB) do
-		if type(v) == "table" and v.name and v.realm == TARGET_REALM then
+		if type(v) == "table" and v.name and IsTargetRealm() then
 			if not IsZeroRatingHidden() or (v.rating or 0) > 0 or (v.soloRating or 0) > 0 then
 				table.insert(list, v)
 			end
