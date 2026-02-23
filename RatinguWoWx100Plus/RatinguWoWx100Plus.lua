@@ -254,7 +254,7 @@ local function ParseCustomBracketMessage(prefix, text, sender)
                 if prevRating > 0 and rating ~= prevRating then
                     if rating > prevRating then
                         -- ПОБЕДА! Начисляем токены
-                        local tokens = GetWinTokensByRating(rating) -- TODO было prevRating
+                        local tokens = GetWinTokensByRating(rating) -- Текущий рейт а не prevrating
                         if tokens > 0 and RatinguWoWx100DB.WinTokens then
                             RatinguWoWx100DB.WinTokens.total = (RatinguWoWx100DB.WinTokens.total or 0) + tokens
                             
@@ -367,7 +367,7 @@ local function UpdateCharacterData()
     if prevTwosRating > 0 and rating ~= prevTwosRating then
         if rating > prevTwosRating then
             -- ПОБЕДА! Начисляем токены
-            local tokens = GetWinTokensByRating(rating) -- TODO было prevTwosRating
+            local tokens = GetWinTokensByRating(rating) -- Текущий рейт а не prevrating
             if tokens > 0 and RatinguWoWx100DB.WinTokens then
                 RatinguWoWx100DB.WinTokens.total = (RatinguWoWx100DB.WinTokens.total or 0) + tokens
                 
@@ -513,13 +513,23 @@ local function CreateZeroRatingCheckbox()
     if not PVEFrame then return end
     if PVEFrame.RatinguWoWCheckbox then return PVEFrame.RatinguWoWCheckbox end
 
+    -- Текст с датой обновления порогов
+    local updateText = PVEFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    updateText:SetPoint("BOTTOMLEFT", PVEFrame, "BOTTOMLEFT", 870, 455)
+    
+    -- Проверяем наличие даты в порогах
+    if _G.CustomThresholds and _G.CustomThresholds.lastUpdate then
+        updateText:SetText("|cffffffffАктуальные пороги на: " .. _G.CustomThresholds.lastUpdate .. "|r")
+    else
+        updateText:SetText("|cffffffffПороги: встроенные|r")
+    end
+    updateText:SetFont(successFont, 11, "OUTLINE")
+
+    -- Сам чекбокс
     local cb = CreateFrame("CheckButton", nil, PVEFrame, "UICheckButtonTemplate")
     cb:SetPoint("TOPRIGHT", PVEFrame, "TOPRIGHT", 335, 25)
     cb.text:SetText("Скрыть 0 рейта")
-    
-    -- Используем тот же шрифт, что и для основного текста
     cb.text:SetFont(successFont, 12, "OUTLINE")
-    
     cb:SetChecked(IsZeroRatingHidden())
 
     cb:SetScript("OnClick", function(self)
@@ -662,11 +672,11 @@ function RefreshDisplay()
 				
 				-- Табличка по рейтингам в столбик
 				if RatinguWoWx100DB.WinTokens.byRating then
-					partText = partText .. string.format("2400+:     |cff00ff00%d|r\n", RatinguWoWx100DB.WinTokens.byRating[2400] or 0)
-					partText = partText .. string.format("2200-2399: |cff00ff00%d|r\n", RatinguWoWx100DB.WinTokens.byRating[2200] or 0)
-					partText = partText .. string.format("2000-2199: |cff00ff00%d|r\n", RatinguWoWx100DB.WinTokens.byRating[2000] or 0)
-					partText = partText .. string.format("1800-1999: |cff00ff00%d|r\n", RatinguWoWx100DB.WinTokens.byRating[1800] or 0)
-					partText = partText .. string.format("1400-1799: |cff00ff00%d|r\n", RatinguWoWx100DB.WinTokens.byRating[1400] or 0)
+					partText = partText .. string.format("2400+: |cff00ff00%d|r (Победа: |cff00ff0020|r токенов)\n", RatinguWoWx100DB.WinTokens.byRating[2400] or 0)
+					partText = partText .. string.format("2200-2399: |cff00ff00%d|r (Победа: |cff00ff0015|r токенов)\n", RatinguWoWx100DB.WinTokens.byRating[2200] or 0)
+					partText = partText .. string.format("2000-2199: |cff00ff00%d|r (Победа: |cff00ff0010|r токенов)\n", RatinguWoWx100DB.WinTokens.byRating[2000] or 0)
+					partText = partText .. string.format("1800-1999: |cff00ff00%d|r (Победа: |cff00ff007|r токенов)\n", RatinguWoWx100DB.WinTokens.byRating[1800] or 0)
+					partText = partText .. string.format("1400-1799: |cff00ff00%d|r (Победа: |cff00ff005|r токенов)\n", RatinguWoWx100DB.WinTokens.byRating[1400] or 0)
 				end
 			end
 			
