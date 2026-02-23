@@ -1,0 +1,9 @@
+## Interface: 70300
+## Title: RatinguWoWx100Plus
+## Notes: Отображает PvP рейтинг 2v2 и соло с токенами (Legion 7.3.5)
+## Author: Kyckax (modified)
+## Version: 2.0
+## SavedVariables: RatinguWoWx100DB
+
+RatinguWoWx100Plus.lua
+thresholds.lua
