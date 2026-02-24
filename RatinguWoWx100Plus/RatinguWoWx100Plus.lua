@@ -47,7 +47,11 @@ if not RatinguWoWx100DB.LastRatings then
 end
 
 -- Включаем дебаг режим (включено для тестирования)
-local DEBUG_MODE = true
+local DEBUG_MODE = false
+
+-- Защита от дублей для 2х2
+local lastTwosWinTime = 0
+local lastTwosRating = 0
 
 -- Инициализация текущего персонажа
 if not RatinguWoWx100DB.currentChar then
@@ -60,7 +64,7 @@ local TARGET_REALMS = {
     "x100 Plus Season [RU]",
     "x100 Plus Season [RU2]",
     "x100 Plus Season [PL]",
-    "Legion plus test",
+    -- "Legion plus test",
 }
 
 -- Функция проверки реалма
@@ -472,7 +476,6 @@ local function UpdateCharacterData()
     -- ПОЛНОСТЬЮ ОТКЛЮЧЕННЫЙ БЛОК 2х2
     -- Проблема: рейтинг обновляется с задержкой, и события триггерят множественные вызовы
     -- Временно отключено до исправления логики
-    --[[
     -- Получаем предыдущий рейтинг для этого персонажа (с защитой)
     local prevTwosRating = 0
     if RatinguWoWx100DB.LastRatings and RatinguWoWx100DB.LastRatings[key] then
@@ -485,6 +488,14 @@ local function UpdateCharacterData()
     if prevTwosRating > 0 and rating ~= prevTwosRating then
         DebugPrint("РЕЙТИНГ ИЗМЕНИЛСЯ!")
         if rating > prevTwosRating then
+		-- Защита от дублей (не чаще раза в 5 секунд и только если рейтинг реально новый)
+		local currentTime = time()
+		if currentTime - lastTwosWinTime < 5 and rating == lastTwosRating then
+			DebugPrint("Предотвращено дублирование победы 2х2")
+			return
+		end
+		lastTwosWinTime = currentTime
+		lastTwosRating = rating
             DebugPrint("🎉 ПОБЕДА! Рейтинг вырос")
             -- ПОБЕДА! Начисляем токены
             local tokens = GetWinTokensByRating(rating) -- Текущий рейт а не prevrating
@@ -528,6 +539,16 @@ local function UpdateCharacterData()
                 print(string.format("|cff00ff00[RatinguWoW] 2х2: Победа! +%d токенов (рейтинг: %d). Всего: %d|r", 
                     tokens, prevTwosRating, RatinguWoWx100DB.WinTokens.total))
                 
+                -- ⚡⚡⚡ СРОЧНОЕ ОБНОВЛЕНИЕ ЗДЕСЬ ⚡⚡⚡
+                if not RatinguWoWx100DB.LastRatings then
+                    RatinguWoWx100DB.LastRatings = {}
+                end
+                if not RatinguWoWx100DB.LastRatings[key] then
+                    RatinguWoWx100DB.LastRatings[key] = {}
+                end
+                RatinguWoWx100DB.LastRatings[key].twos = rating
+                DebugPrint("⚡ Срочное обновление LastRatings 2х2:", rating)
+                
                 DebugPrint("Вызываем RefreshDisplay из условия победы")
                 RefreshDisplay()
             end
@@ -537,7 +558,6 @@ local function UpdateCharacterData()
     else
         DebugPrint("Рейтинг не изменился или prev=0")
     end
-    --]] 
     -- КОНЕЦ ОТКЛЮЧЕННОГО БЛОКА 2х2
     
     -- Сохраняем новый рейтинг для этого персонажа (с защитой)
