@@ -1,10 +1,10 @@
 -- thresholds.lua
 -- Auto-generated thresholds file
--- Generated: 2026-02-25 00:37:44
+-- Generated: 2026-02-25 01:14:53
 
 CustomThresholds = {
 
-    lastUpdate = "2026-02-25 00:37",
+    lastUpdate = "2026-02-25 01:14",
     [2] = {  -- 2х2
         { rating = 2690, reward = 4000, title = "Р1" },
         { rating = 2595, reward = 2500, title = "Гладиатор" },
