@@ -47,7 +47,7 @@ if not RatinguWoWx100DB.LastRatings then
 end
 
 -- Включаем дебаг режим (включено для тестирования)
-local DEBUG_MODE = false
+local DEBUG_MODE = true
 
 -- Инициализация текущего персонажа
 if not RatinguWoWx100DB.currentChar then
@@ -60,6 +60,7 @@ local TARGET_REALMS = {
     "x100 Plus Season [RU]",
     "x100 Plus Season [RU2]",
     "x100 Plus Season [PL]",
+    "Legion plus test",
 }
 
 -- Функция проверки реалма
@@ -401,15 +402,22 @@ end
 
 -- Обновление данных текущего персонажа
 local function UpdateCharacterData()
+    DebugPrint("=== UpdateCharacterData START ===")
+    
     -- Проверяем реалм
     if not IsTargetRealm() then
+        DebugPrint("Не целевой реалм, выход")
         return
     end
     
     local key = GetCharIdentifier()
+    DebugPrint("key:", key)
+    DebugPrint("currentChar:", RatinguWoWx100DB.currentChar or "nil")
     
     -- Проверка на смену персонажа
     if RatinguWoWx100DB.currentChar ~= key then
+        DebugPrint("СМЕНА ПЕРСОНАЖА: было", RatinguWoWx100DB.currentChar, "стало", key)
+        
         -- Это смена персонажа, просто обновляем ключ и данные
         RatinguWoWx100DB.currentChar = key
         RatinguWoWx100DB[key] = RatinguWoWx100DB[key] or {}
@@ -425,9 +433,13 @@ local function UpdateCharacterData()
         -- Получаем текущий рейтинг без начисления токенов
         local rating, _, _, seasonPlayed, seasonWon = GetPersonalRatedInfo(1)
         RatinguWoWx100DB.LastRatings[key].twos = rating or 0
+        DebugPrint("Смена персонажа: сохраняем рейтинг", rating or 0)
         
+        DebugPrint("=== UpdateCharacterData END (смена персонажа) ===")
         return -- Выходим, не начисляя токены
     end
+    
+    DebugPrint("Тот же персонаж, продолжаем...")
     RatinguWoWx100DB[key] = RatinguWoWx100DB[key] or {}
     
     -- Убеждаемся что WinTokens существует
@@ -443,6 +455,7 @@ local function UpdateCharacterData()
             },
             history = {},
         }
+        DebugPrint("WinTokens инициализирован")
     end
 
     -- Рейтинг + статистика 2х2
@@ -453,20 +466,33 @@ local function UpdateCharacterData()
         seasonPlayed = seasonPlayed or 0
         seasonWon = seasonWon or 0
     end
+    DebugPrint("rating from API:", rating)
+    DebugPrint("seasonPlayed:", seasonPlayed, "seasonWon:", seasonWon)
 
+    -- ПОЛНОСТЬЮ ОТКЛЮЧЕННЫЙ БЛОК 2х2
+    -- Проблема: рейтинг обновляется с задержкой, и события триггерят множественные вызовы
+    -- Временно отключено до исправления логики
+    --[[
     -- Получаем предыдущий рейтинг для этого персонажа (с защитой)
     local prevTwosRating = 0
     if RatinguWoWx100DB.LastRatings and RatinguWoWx100DB.LastRatings[key] then
         prevTwosRating = RatinguWoWx100DB.LastRatings[key].twos or 0
     end
+    DebugPrint("prevTwosRating from DB:", prevTwosRating)
+    DebugPrint("Проверка: prev=", prevTwosRating, "current=", rating, "равны?", rating == prevTwosRating)
     
     -- Проверяем изменение рейтинга для 2х2
     if prevTwosRating > 0 and rating ~= prevTwosRating then
+        DebugPrint("РЕЙТИНГ ИЗМЕНИЛСЯ!")
         if rating > prevTwosRating then
+            DebugPrint("🎉 ПОБЕДА! Рейтинг вырос")
             -- ПОБЕДА! Начисляем токены
             local tokens = GetWinTokensByRating(rating) -- Текущий рейт а не prevrating
+            DebugPrint("Токены за победу:", tokens)
+            
             if tokens > 0 and RatinguWoWx100DB.WinTokens then
                 RatinguWoWx100DB.WinTokens.total = (RatinguWoWx100DB.WinTokens.total or 0) + tokens
+                DebugPrint("WinTokens.total теперь:", RatinguWoWx100DB.WinTokens.total)
                 
                 -- Сохраняем статистику по рейтингу
                 if not RatinguWoWx100DB.WinTokens.byRating then
@@ -496,17 +522,23 @@ local function UpdateCharacterData()
                     tokens = tokens,
                     total = RatinguWoWx100DB.WinTokens.total
                 })
+                DebugPrint("История обновлена")
                 
                 -- Выводим сообщение
                 print(string.format("|cff00ff00[RatinguWoW] 2х2: Победа! +%d токенов (рейтинг: %d). Всего: %d|r", 
                     tokens, prevTwosRating, RatinguWoWx100DB.WinTokens.total))
                 
+                DebugPrint("Вызываем RefreshDisplay из условия победы")
                 RefreshDisplay()
             end
         elseif rating < prevTwosRating then
             DebugPrint("2х2: Поражение! Рейтинг упал с", prevTwosRating, "до", rating)
         end
+    else
+        DebugPrint("Рейтинг не изменился или prev=0")
     end
+    --]] 
+    -- КОНЕЦ ОТКЛЮЧЕННОГО БЛОКА 2х2
     
     -- Сохраняем новый рейтинг для этого персонажа (с защитой)
     if not RatinguWoWx100DB.LastRatings then
@@ -516,6 +548,7 @@ local function UpdateCharacterData()
         RatinguWoWx100DB.LastRatings[key] = {}
     end
     RatinguWoWx100DB.LastRatings[key].twos = rating
+    DebugPrint("LastRatings обновлен:", RatinguWoWx100DB.LastRatings[key].twos)
 
     -- Обновляем общее количество побед для 2х2 (только победы!)
     if seasonWon > 0 then
@@ -523,6 +556,7 @@ local function UpdateCharacterData()
             RatinguWoWx100DB.WinHistory = {}
         end
         RatinguWoWx100DB.WinHistory.twosWins = seasonWon
+        DebugPrint("WinHistory.twosWins обновлен:", seasonWon)
     end
 
     -- Соло рейтинг
@@ -546,6 +580,7 @@ local function UpdateCharacterData()
             end
             RatinguWoWx100DB.WinHistory.soloWins = soloWins
             soloWinrate = (soloWins / soloGameCount) * 100
+            DebugPrint("WinHistory.soloWins обновлен:", soloWins)
         end
     end
 
@@ -603,6 +638,8 @@ local function UpdateCharacterData()
     RatinguWoWx100DB[key].currencyHonor = {amount = honorAmount, icon = honorIcon}
     RatinguWoWx100DB[key].currencyConquest = {amount = conquestAmount, icon = conquestIcon}
     RatinguWoWx100DB[key].currencyResources = {amount = warResources, icon = "Interface\\Icons\\Inv_misc_herb_goldclover.blp"}
+    
+    DebugPrint("=== UpdateCharacterData END ===")
 end
 
 -- Создание чекбокса
@@ -650,7 +687,13 @@ local function GetWinrateColor(winrate)
 end
 
 -- Обновление текста внутри PVEFrame
+local isRefreshing = false
 function RefreshDisplay()
+	if isRefreshing then 
+			DebugPrint("Предотвращена рекурсия в RefreshDisplay")
+			return 
+		end
+    isRefreshing = true
     UpdateCharacterData()
     
     -- В функции RefreshDisplay(), после проверки PVEFrame
@@ -951,7 +994,7 @@ function RefreshDisplay()
             textField:Hide()
         end
     end
-
+	isRefreshing = false
     CreateZeroRatingCheckbox()
 end
 
@@ -959,6 +1002,12 @@ end
 local addonDebugFrame = CreateFrame("Frame")
 addonDebugFrame:RegisterEvent("CHAT_MSG_ADDON")
 addonDebugFrame:SetScript("OnEvent", function(self, event, prefix, text, channel, sender, ...)
+
+-- Игнорируем свои же сообщения
+    if sender == UnitName("player") then
+        return
+    end
+	
     if prefix == "UISMSG_TO_CLIENT" and text then
         if string.find(text, "UISMSG_UCUSTOM_BRACKET") then
             ParseCustomBracketMessage("UISMSG_UCUSTOM_BRACKET", text, sender)
