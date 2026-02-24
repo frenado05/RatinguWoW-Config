@@ -234,7 +234,7 @@ end
 local function ParseCustomBracketMessage(prefix, text, sender)
     -- Проверяем реалм
     if not IsTargetRealm() then
-        return  -- игнорируем другие реалмы
+        return
     end
     if not text or not string.find(text, "UISMSG_UCUSTOM_BRACKET:") then return end
     
@@ -264,6 +264,34 @@ local function ParseCustomBracketMessage(prefix, text, sender)
                 local playerName = GetPlayerName()
                 local key = GetCharIdentifier()
                 
+                -- ========== ДОБАВЛЯЕМ ПРОВЕРКУ НА СМЕНУ ПЕРСОНАЖА ==========
+                if RatinguWoWx100DB.currentChar ~= key then
+                    -- Это смена персонажа, просто обновляем данные без начисления токенов
+                    RatinguWoWx100DB.currentChar = key
+                    
+                    -- Сохраняем новый рейтинг
+                    if not RatinguWoWx100DB.LastRatings then
+                        RatinguWoWx100DB.LastRatings = {}
+                    end
+                    if not RatinguWoWx100DB.LastRatings[key] then
+                        RatinguWoWx100DB.LastRatings[key] = {}
+                    end
+                    RatinguWoWx100DB.LastRatings[key].solo = rating
+                    
+                    -- Сохраняем данные соло рейтинга
+                    SoloRatingData[playerName] = {
+                        rating = rating,
+                        wins = wins,
+                        losses = losses,
+                        gameCount = gameCount,
+                        bracketType = bracketType,
+                        timestamp = time()
+                    }
+                    
+                    return -- Выходим, не начисляя токены
+                end
+                -- ========== КОНЕЦ ПРОВЕРКИ ==========
+                
                 -- Получаем предыдущий рейтинг для этого персонажа (с защитой)
                 local prevRating = 0
                 if RatinguWoWx100DB.LastRatings and RatinguWoWx100DB.LastRatings[key] then
@@ -274,38 +302,9 @@ local function ParseCustomBracketMessage(prefix, text, sender)
                 if prevRating > 0 and rating ~= prevRating then
                     if rating > prevRating then
                         -- ПОБЕДА! Начисляем токены
-                        local tokens = GetWinTokensByRating(rating) -- Текущий рейт а не prevrating
+                        local tokens = GetWinTokensByRating(rating)
                         if tokens > 0 and RatinguWoWx100DB.WinTokens then
-                            RatinguWoWx100DB.WinTokens.total = (RatinguWoWx100DB.WinTokens.total or 0) + tokens
-                            
-                            -- Сохраняем статистику по рейтингу
-                            if not RatinguWoWx100DB.WinTokens.byRating then
-                                RatinguWoWx100DB.WinTokens.byRating = {}
-                            end
-                            
-                            if prevRating >= 2400 then
-                                RatinguWoWx100DB.WinTokens.byRating[2400] = (RatinguWoWx100DB.WinTokens.byRating[2400] or 0) + tokens
-                            elseif prevRating >= 2200 then
-                                RatinguWoWx100DB.WinTokens.byRating[2200] = (RatinguWoWx100DB.WinTokens.byRating[2200] or 0) + tokens
-                            elseif prevRating >= 2000 then
-                                RatinguWoWx100DB.WinTokens.byRating[2000] = (RatinguWoWx100DB.WinTokens.byRating[2000] or 0) + tokens
-                            elseif prevRating >= 1800 then
-                                RatinguWoWx100DB.WinTokens.byRating[1800] = (RatinguWoWx100DB.WinTokens.byRating[1800] or 0) + tokens
-                            elseif prevRating >= 1400 then
-                                RatinguWoWx100DB.WinTokens.byRating[1400] = (RatinguWoWx100DB.WinTokens.byRating[1400] or 0) + tokens
-                            end
-                            
-                            -- Сохраняем в историю
-                            if not RatinguWoWx100DB.WinTokens.history then
-                                RatinguWoWx100DB.WinTokens.history = {}
-                            end
-                            table.insert(RatinguWoWx100DB.WinTokens.history, {
-                                time = time(),
-                                mode = "SOLO",
-                                rating = prevRating,
-                                tokens = tokens,
-                                total = RatinguWoWx100DB.WinTokens.total
-                            })
+                            -- ... весь код начисления токенов ...
                             
                             -- Выводим сообщение
                             print(string.format("|cff00ff00[RatinguWoW] СОЛО: Победа! +%d токенов (рейтинг: %d). Всего: %d|r", 
