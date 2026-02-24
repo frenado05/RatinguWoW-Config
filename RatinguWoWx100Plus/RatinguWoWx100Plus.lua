@@ -245,6 +245,8 @@ local function ParseCustomBracketMessage(prefix, text, sender)
         table.insert(bracketStrings, match)
     end
     
+    local shouldRefresh = false  -- Флаг для обновления в конце
+    
     for idx, bracketStr in ipairs(bracketStrings) do
         local parts = {}
         for match in string.gmatch(bracketStr, "[^|]+") do
@@ -264,7 +266,7 @@ local function ParseCustomBracketMessage(prefix, text, sender)
                 local playerName = GetPlayerName()
                 local key = GetCharIdentifier()
                 
-                -- ========== ДОБАВЛЯЕМ ПРОВЕРКУ НА СМЕНУ ПЕРСОНАЖА ==========
+                -- ========== ПРОВЕРКА НА СМЕНУ ПЕРСОНАЖА ==========
                 if RatinguWoWx100DB.currentChar ~= key then
                     -- Это смена персонажа, просто обновляем данные без начисления токенов
                     RatinguWoWx100DB.currentChar = key
@@ -278,55 +280,106 @@ local function ParseCustomBracketMessage(prefix, text, sender)
                     end
                     RatinguWoWx100DB.LastRatings[key].solo = rating
                     
-                    -- Сохраняем данные соло рейтинга
-                    SoloRatingData[playerName] = {
-                        rating = rating,
-                        wins = wins,
-                        losses = losses,
-                        gameCount = gameCount,
-                        bracketType = bracketType,
-                        timestamp = time()
-                    }
+                    -- Сохраняем данные в основную базу (FIX 4)
+                    RatinguWoWx100DB[key] = RatinguWoWx100DB[key] or {}
+                    RatinguWoWx100DB[key].name = playerName
+                    RatinguWoWx100DB[key].realm = GetRealmName()
+                    RatinguWoWx100DB[key].soloRating = rating
+                    RatinguWoWx100DB[key].soloWins = wins
+                    RatinguWoWx100DB[key].soloLosses = losses
+                    RatinguWoWx100DB[key].soloGameCount = gameCount
                     
-                    return -- Выходим, не начисляя токены
-                end
-                -- ========== КОНЕЦ ПРОВЕРКИ ==========
-                
-                -- Получаем предыдущий рейтинг для этого персонажа (с защитой)
-                local prevRating = 0
-                if RatinguWoWx100DB.LastRatings and RatinguWoWx100DB.LastRatings[key] then
-                    prevRating = RatinguWoWx100DB.LastRatings[key].solo or 0
-                end
-                
-                -- Если рейтинг изменился и был больше 0
-                if prevRating > 0 and rating ~= prevRating then
-                    if rating > prevRating then
-                        -- ПОБЕДА! Начисляем токены
-                        local tokens = GetWinTokensByRating(rating)
-                        if tokens > 0 and RatinguWoWx100DB.WinTokens then
-                            -- ... весь код начисления токенов ...
-                            
-                            -- Выводим сообщение
-                            print(string.format("|cff00ff00[RatinguWoW] СОЛО: Победа! +%d токенов (рейтинг: %d). Всего: %d|r", 
-                                tokens, prevRating, RatinguWoWx100DB.WinTokens.total))
-                            
-                            RefreshDisplay()
-                        end
-                    elseif rating < prevRating then
-                        DebugPrint("СОЛО: Поражение! Рейтинг упал с", prevRating, "до", rating)
+                    -- Обновляем WinHistory.soloWins (FIX 6)
+                    if not RatinguWoWx100DB.WinHistory then
+                        RatinguWoWx100DB.WinHistory = {}
                     end
+                    RatinguWoWx100DB.WinHistory.soloWins = wins
+                    
+                    shouldRefresh = true
+                    
+                else
+                    -- ========== ЭТО ТОТ ЖЕ ПЕРСОНАЖ ==========
+                    
+                    -- Получаем предыдущий рейтинг для этого персонажа (с защитой)
+                    local prevRating = 0
+                    if RatinguWoWx100DB.LastRatings and RatinguWoWx100DB.LastRatings[key] then
+                        prevRating = RatinguWoWx100DB.LastRatings[key].solo or 0
+                    end
+                    
+                    -- Если рейтинг изменился и был больше 0
+                    if prevRating > 0 and rating ~= prevRating then
+                        if rating > prevRating then
+                            -- ПОБЕДА! Начисляем токены
+                            local tokens = GetWinTokensByRating(rating)
+                            if tokens > 0 and RatinguWoWx100DB.WinTokens then
+                                RatinguWoWx100DB.WinTokens.total = (RatinguWoWx100DB.WinTokens.total or 0) + tokens
+                                
+                                -- Сохраняем статистику по рейтингу
+                                if not RatinguWoWx100DB.WinTokens.byRating then
+                                    RatinguWoWx100DB.WinTokens.byRating = {}
+                                end
+                                
+                                if prevRating >= 2400 then
+                                    RatinguWoWx100DB.WinTokens.byRating[2400] = (RatinguWoWx100DB.WinTokens.byRating[2400] or 0) + tokens
+                                elseif prevRating >= 2200 then
+                                    RatinguWoWx100DB.WinTokens.byRating[2200] = (RatinguWoWx100DB.WinTokens.byRating[2200] or 0) + tokens
+                                elseif prevRating >= 2000 then
+                                    RatinguWoWx100DB.WinTokens.byRating[2000] = (RatinguWoWx100DB.WinTokens.byRating[2000] or 0) + tokens
+                                elseif prevRating >= 1800 then
+                                    RatinguWoWx100DB.WinTokens.byRating[1800] = (RatinguWoWx100DB.WinTokens.byRating[1800] or 0) + tokens
+                                elseif prevRating >= 1400 then
+                                    RatinguWoWx100DB.WinTokens.byRating[1400] = (RatinguWoWx100DB.WinTokens.byRating[1400] or 0) + tokens
+                                end
+                                
+                                -- Сохраняем в историю
+                                if not RatinguWoWx100DB.WinTokens.history then
+                                    RatinguWoWx100DB.WinTokens.history = {}
+                                end
+                                table.insert(RatinguWoWx100DB.WinTokens.history, {
+                                    time = time(),
+                                    mode = "SOLO",
+                                    rating = prevRating,
+                                    tokens = tokens,
+                                    total = RatinguWoWx100DB.WinTokens.total
+                                })
+                                
+                                -- Выводим сообщение
+                                print(string.format("|cff00ff00[RatinguWoW] СОЛО: Победа! +%d токенов (рейтинг: %d). Всего: %d|r", 
+                                    tokens, prevRating, RatinguWoWx100DB.WinTokens.total))
+                                
+                                shouldRefresh = true
+                            end
+                        elseif rating < prevRating then
+                            DebugPrint("СОЛО: Поражение! Рейтинг упал с", prevRating, "до", rating)
+                        end
+                    end
+                    
+                    -- Сохраняем новый рейтинг для этого персонажа (с защитой)
+                    if not RatinguWoWx100DB.LastRatings then
+                        RatinguWoWx100DB.LastRatings = {}
+                    end
+                    if not RatinguWoWx100DB.LastRatings[key] then
+                        RatinguWoWx100DB.LastRatings[key] = {}
+                    end
+                    RatinguWoWx100DB.LastRatings[key].solo = rating
+                    
+                    -- Сохраняем данные в основную базу
+                    RatinguWoWx100DB[key] = RatinguWoWx100DB[key] or {}
+                    RatinguWoWx100DB[key].name = playerName
+                    RatinguWoWx100DB[key].realm = GetRealmName()
+                    RatinguWoWx100DB[key].soloRating = rating
+                    RatinguWoWx100DB[key].soloWins = wins
+                    RatinguWoWx100DB[key].soloLosses = losses
+                    RatinguWoWx100DB[key].soloGameCount = gameCount
+                    
+                    -- Обновляем WinHistory.soloWins
+                    if not RatinguWoWx100DB.WinHistory then
+                        RatinguWoWx100DB.WinHistory = {}
+                    end
+                    RatinguWoWx100DB.WinHistory.soloWins = wins
                 end
                 
-                -- Сохраняем новый рейтинг для этого персонажа (с защитой)
-                if not RatinguWoWx100DB.LastRatings then
-                    RatinguWoWx100DB.LastRatings = {}
-                end
-                if not RatinguWoWx100DB.LastRatings[key] then
-                    RatinguWoWx100DB.LastRatings[key] = {}
-                end
-                RatinguWoWx100DB.LastRatings[key].solo = rating
-                
-                -- Сохраняем данные соло рейтинга как обычно
+                -- Сохраняем данные соло рейтинга во временное хранилище
                 SoloRatingData[playerName] = {
                     rating = rating,
                     wins = wins,
@@ -338,6 +391,11 @@ local function ParseCustomBracketMessage(prefix, text, sender)
                 DebugPrint("Сохранен соло рейтинг для", playerName, ":", rating)
             end
         end
+    end
+    
+    -- Обновляем отображение один раз в конце (FIX 7)
+    if shouldRefresh then
+        RefreshDisplay()
     end
 end
 
