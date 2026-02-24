@@ -49,6 +49,11 @@ end
 -- Включаем дебаг режим (включено для тестирования)
 local DEBUG_MODE = false
 
+-- Инициализация текущего персонажа
+if not RatinguWoWx100DB.currentChar then
+    RatinguWoWx100DB.currentChar = ""
+end
+
 -- Жестко заданный реалм (только для этого сервера)
 local TARGET_REALMS = {
     "x100 Plus Season",
@@ -341,10 +346,31 @@ end
 local function UpdateCharacterData()
     -- Проверяем реалм
     if not IsTargetRealm() then
-        return  -- не сохраняем персонажей с других реалмов
+        return
     end
     
     local key = GetCharIdentifier()
+    
+    -- Проверка на смену персонажа
+    if RatinguWoWx100DB.currentChar ~= key then
+        -- Это смена персонажа, просто обновляем ключ и данные
+        RatinguWoWx100DB.currentChar = key
+        RatinguWoWx100DB[key] = RatinguWoWx100DB[key] or {}
+        
+        -- Инициализируем LastRatings для нового персонажа если нужно
+        if not RatinguWoWx100DB.LastRatings then
+            RatinguWoWx100DB.LastRatings = {}
+        end
+        if not RatinguWoWx100DB.LastRatings[key] then
+            RatinguWoWx100DB.LastRatings[key] = {}
+        end
+        
+        -- Получаем текущий рейтинг без начисления токенов
+        local rating, _, _, seasonPlayed, seasonWon = GetPersonalRatedInfo(1)
+        RatinguWoWx100DB.LastRatings[key].twos = rating or 0
+        
+        return -- Выходим, не начисляя токены
+    end
     RatinguWoWx100DB[key] = RatinguWoWx100DB[key] or {}
     
     -- Убеждаемся что WinTokens существует
